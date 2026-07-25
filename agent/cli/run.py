@@ -14,9 +14,6 @@ def run_cmd(ctx, task_input):
     """Execute a single task from text or a file and exit."""
     project_dir = ctx.obj['project_dir']
     model = ctx.obj['model']
-    port = ctx.obj['port']
-    ctx_size = ctx.obj['ctx_size']
-    server_bin = ctx.obj['server_bin']
     
     input_str = " ".join(task_input).strip()
     file_path = os.path.join(project_dir, input_str)
@@ -31,14 +28,13 @@ def run_cmd(ctx, task_input):
     if not query:
         raise click.ClickException("Task input cannot be empty.")
 
-    click.echo(f"🏠 Project: {project_dir}")
-    click.echo(f"🤖 Model: {model}")
-    
-    click.echo("✅ assuming model server is running or reachable.")
-        
-    print("🔍 Indexing project...")
-    
     project_ctx = generate_project_context(project_dir)
+    file_count = project_ctx.count("\n") - 5
+    
+    # Unified banner
+    click.echo(f"⚡ Forge Agent | Model: {model} | Project: {project_dir}")
+    click.echo(f"📁 Indexed {file_count} files")
+    
     state = load_session_state(project_dir)
     
     try:

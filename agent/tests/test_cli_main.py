@@ -10,8 +10,6 @@ def test_root_command_requires_subcommand():
 
 def test_root_command_accepts_global_options(tmp_path):
     runner = CliRunner()
-    model_path = tmp_path / "model.gguf"
-    model_path.write_text("")
-    result = runner.invoke(main, ['--project', '.', '--model', str(model_path), 'chat', '--help'])
+    result = runner.invoke(main, ['--project', '.', '--model', 'gemini-2.5-pro', 'chat', '--help'])
     assert result.exit_code == 0
     assert "Start an interactive coding session" in result.output
