@@ -2,9 +2,9 @@ import sys
 import click
 from runtime.gate import classify_input
 from runtime.indexer import generate_project_context
-
 from runtime.scheduler import run_agent
 from runtime.session_state import load_session_state, print_resume_banner, save_session_state
+from runtime.chat_responder import generate_chat_response
 
 @click.command("chat")
 @click.pass_context
@@ -31,19 +31,23 @@ def chat_cmd(ctx):
             if not query: continue
             if query.lower() in ("exit", "quit", "q"): break
 
+            state.append_chat_message("user", query)
+
             intent = classify_input(query, project_context=project_ctx)
-            if intent == "trivial":
-                click.echo("🙂 Tell me what you'd like me to build, fix, or change.\n")
-                continue
-            if intent == "vague":
-                click.echo("❓ Can you give me more detail — which file, what behavior?\n")
-                continue
-            if intent == "chat":
-                click.echo("💬 Let's focus on your coding project! What would you like to build or fix?\n")
+            if intent in ("trivial", "vague", "chat"):
+                response = generate_chat_response(query, state.chat_history[:-1], project_ctx)
+                click.echo(f"\n🤖 {response}\n")
+                state.append_chat_message("assistant", response)
+                save_session_state(state, project_dir)
                 continue
 
+            # It's a task
             res = run_agent(query, project_dir, project_context=project_ctx)
             state.last_goal = query
+            
+            # Summarize the action for the chat history
+            state.append_chat_message("assistant", f"[Executed task: {query}]")
+            
             if isinstance(res, dict):
                 completed = res.get("completed", [])
                 failed = res.get("failed", [])
