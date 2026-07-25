@@ -21,13 +21,17 @@ def generate_chat_response(query: str, history: list[dict[str, str]], project_co
     
     # Append history
     for msg in history:
-        messages.append(msg)
+        if msg.get("content", "").strip():  # Skip empty messages
+            messages.append(msg)
         
     # Append current query
     messages.append({"role": "user", "content": query})
     
     try:
         # Use low max_tokens for chat responses
-        return chat(messages, temperature=0.7, max_tokens=500).strip()
-    except Exception:
-        return "🙂 Tell me what you'd like me to build, fix, or change."
+        res = chat(messages, temperature=0.7, max_tokens=500).strip()
+        if not res:
+            return "🙂 Tell me what you'd like me to build, fix, or change."
+        return res
+    except Exception as e:
+        return f"🙂 Tell me what you'd like me to build, fix, or change. (API Error: {str(e)})"

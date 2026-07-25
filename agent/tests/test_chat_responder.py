@@ -25,4 +25,5 @@ def test_generate_chat_response(mock_chat):
 def test_generate_chat_response_fallback(mock_chat):
     mock_chat.side_effect = Exception("API error")
     res = generate_chat_response("hi", [], "")
-    assert res == "🙂 Tell me what you'd like me to build, fix, or change."
+    assert "Tell me what you'd like me to build" in res
+    assert "API error" in res
