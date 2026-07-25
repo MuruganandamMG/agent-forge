@@ -55,7 +55,9 @@ def main(ctx: click.Context, project: str, model: str, port: int, ctx_size: int,
     ctx.obj['server_bin'] = server_bin
 
 from cli.chat import chat_cmd
+from cli.run import run_cmd
 main.add_command(chat_cmd)
+main.add_command(run_cmd)
 
 if __name__ == "__main__":
     main.add_command(chat_cmd)
