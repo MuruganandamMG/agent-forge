@@ -1,0 +1,13 @@
+__pycache__/
+*.pyc
+.venv/
+venv/
+ENV/
+.agent_memory/
+.superpowers/
+*.egg-info/
+dist/
+build/
+.pytest_cache/
+session_state.json
+temp_test_db/
