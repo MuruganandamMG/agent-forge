@@ -28,8 +28,8 @@ def generate_chat_response(query: str, history: list[dict[str, str]], project_co
     messages.append({"role": "user", "content": query})
     
     try:
-        # Use low max_tokens for chat responses
-        res = chat(messages, temperature=0.7, max_tokens=500).strip()
+        # Let the model use its default token limits
+        res = chat(messages, temperature=0.7).strip()
         if not res:
             return "🙂 Tell me what you'd like me to build, fix, or change."
         return res
