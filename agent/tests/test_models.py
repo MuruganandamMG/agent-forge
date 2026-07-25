@@ -2,9 +2,8 @@ from unittest.mock import MagicMock, patch
 
 from runtime.models import chat, count_tokens
 
-
 class TestChat:
-    @patch("runtime.models.genai.Client")
+    @patch("runtime.providers.gemini_provider.genai.Client")
     def test_chat_returns_assistant_content(self, mock_client_class) -> None:
         mock_client_instance = mock_client_class.return_value
         mock_response = MagicMock()
@@ -17,7 +16,7 @@ class TestChat:
         assert result == "Hello! How can I help you?"
         mock_client_instance.models.generate_content.assert_called_once()
 
-    @patch("runtime.models.genai.Client")
+    @patch("runtime.providers.gemini_provider.genai.Client")
     def test_chat_sends_correct_parameters(self, mock_client_class) -> None:
         mock_client_instance = mock_client_class.return_value
         mock_response = MagicMock()
@@ -28,12 +27,18 @@ class TestChat:
         chat(messages, temperature=0.7, max_tokens=1024, stop=["\n"])
 
         mock_client_instance.models.generate_content.assert_called_once()
+        _, kwargs = mock_client_instance.models.generate_content.call_args
+        assert kwargs["model"] == "gemini-2.5-pro"
+        assert kwargs["config"].temperature == 0.7
+        assert kwargs["config"].max_output_tokens == 1024
 
 
 class TestCountTokens:
-    def test_count_tokens_empty_string(self) -> None:
+    @patch("runtime.providers.gemini_provider.genai.Client")
+    def test_count_tokens_empty_string(self, mock_client_class) -> None:
         assert count_tokens("") == 0
 
-    def test_count_tokens_400_chars(self) -> None:
+    @patch("runtime.providers.gemini_provider.genai.Client")
+    def test_count_tokens_400_chars(self, mock_client_class) -> None:
         text = "a" * 400
         assert count_tokens(text) == 100

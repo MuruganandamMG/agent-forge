@@ -1,8 +1,6 @@
 import sys
 from typing import Any
-
-from google import genai
-from google.genai import types
+from runtime.providers.gemini_provider import GeminiProvider
 
 if sys.platform == "win32":
     if sys.stdout and hasattr(sys.stdout, "reconfigure"):
@@ -17,51 +15,24 @@ if sys.platform == "win32":
             pass
 
 
+def get_provider(model_string: str = "gemini-2.5-pro"):
+    """Factory to get the correct provider based on model string."""
+    return GeminiProvider(model_name=model_string)
+
+
 def chat(
     messages: list[dict[str, Any]],
     temperature: float = 0.2,
     max_tokens: int = 4096,
     stop: list[str] | None = None,
+    model: str = "gemini-2.5-pro"
 ) -> str:
-    """Send a chat completion request to Gemini API and return the assistant response text."""
-    client = genai.Client()
-    system_instruction = None
-    
-    contents = []
-    for msg in messages:
-        if msg["role"] == "system":
-            system_instruction = msg["content"]
-        else:
-            role = "model" if msg["role"] == "assistant" else msg["role"]
-            contents.append(
-                types.Content(
-                    role=role, 
-                    parts=[types.Part.from_text(text=msg["content"])]
-                )
-            )
-
-    config = types.GenerateContentConfig(
-        temperature=temperature,
-        max_output_tokens=max_tokens,
-        stop_sequences=stop,
-    )
-    
-    if system_instruction:
-        config.system_instruction = system_instruction
-
-    response = client.models.generate_content(
-        model="gemini-2.5-pro",
-        contents=contents,
-        config=config
-    )
-    
-    if response.text is None:
-        return ""
-    return response.text
+    """Send a chat completion request to an LLM API and return the assistant response text."""
+    provider = get_provider(model)
+    return provider.chat(messages, temperature, max_tokens, stop)
 
 
-def count_tokens(text: str) -> int:
-    """Estimate token count using a simple chars/4 heuristic."""
-    if not text:
-        return 0
-    return len(text) // 4
+def count_tokens(text: str, model: str = "gemini-2.5-pro") -> int:
+    """Estimate token count using the provider's token counter."""
+    provider = get_provider(model)
+    return provider.count_tokens(text)
