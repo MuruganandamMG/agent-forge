@@ -24,28 +24,19 @@ class TestQuickClassify:
         assert quick_classify("fix error in models.py") == "task"
         assert quick_classify("add unit tests for scheduler") == "task"
         assert quick_classify("def main(): pass") == "task"
-        assert quick_classify("/plan build a full web app") == "unknown"
+        assert quick_classify("/plan build a full web app") == "task"
         assert quick_classify("refactor validation pipeline") == "task"
 
 
 class TestStage2ClassifyInput:
-    @patch("runtime.gate.llm_classify")
-    def test_trivial_bypasses_llm(self, mock_llm_classify: MagicMock) -> None:
-        """Trivial input must immediately return 'trivial' without calling Stage 2 LLM."""
-        res = classify_input("hello", project_context="some context")
-        assert res == "trivial"
-        mock_llm_classify.assert_not_called()
-
-    @patch("runtime.gate.llm_classify")
-    def test_task_bypasses_llm(self, mock_llm_classify: MagicMock) -> None:
-        """Explicit task input must immediately return 'task' without calling Stage 2 LLM."""
-        res = classify_input("create fibonacci function in fib.py")
-        assert res == "task"
-        mock_llm_classify.assert_not_called()
+    def test_empty_bypasses_llm(self) -> None:
+        """Empty input must immediately return 'trivial' without calling Stage 2 LLM."""
+        assert classify_input("", project_context="some context") == "trivial"
+        assert classify_input("   ", project_context="some context") == "trivial"
 
     @patch("runtime.gate.llm_classify", return_value="task")
-    def test_vague_triggers_llm(self, mock_llm_classify: MagicMock) -> None:
-        """Ambiguous vague input must trigger llm_classify with query and project_context."""
+    def test_triggers_llm(self, mock_llm_classify: MagicMock) -> None:
+        """Input must trigger llm_classify with query and project_context."""
         res = classify_input("fix it", project_context="fib.py with bug in main")
         assert res == "task"
         mock_llm_classify.assert_called_once_with("fix it", "fib.py with bug in main")

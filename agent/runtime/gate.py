@@ -117,15 +117,11 @@ def llm_classify(text: str, project_context: str = "") -> str:
 
 
 def classify_input(text: str, project_context: str = "") -> str:
-    """Two-stage input gate classifier.
+    """Classify user input using the LLM.
 
-    Stage 1: Quick regex/keyword heuristic (quick_classify).
-    Stage 2: Fast LLM classifier (llm_classify) if Stage 1 returned 'unknown'.
+    Returns normalized label: 'task', 'vague', or 'chat' (fallback to 'task' on error).
     """
-    stage1 = quick_classify(text)
-    if stage1 == "trivial":
+    if not text or not text.strip():
         return "trivial"
-    if stage1 == "task":
-        return "task"
-    
+        
     return llm_classify(text, project_context)
