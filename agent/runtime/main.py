@@ -41,19 +41,13 @@ DEFAULT_MODEL = "gemini-2.5-pro"
     default=DEFAULT_MODEL,
     help="Name of the Gemini model to use.",
 )
-@click.option("--port", default=8081, help="Port for llama-server.")
-@click.option("--ctx-size", "-c", default=8192, help="Context size for llama-server.")
-@click.option("--server-bin", default=None, help="Path to llama-server binary.")
 @click.pass_context
-def main(ctx: click.Context, project: str, model: str, port: int, ctx_size: int, server_bin: str | None) -> None:
+def main(ctx: click.Context, project: str, model: str) -> None:
     """Local Coding Agent — autonomous coding assistant."""
     ctx.ensure_object(dict)
     project_dir = str(Path(project).resolve())
     ctx.obj['project_dir'] = project_dir
     ctx.obj['model'] = model
-    ctx.obj['port'] = port
-    ctx.obj['ctx_size'] = ctx_size
-    ctx.obj['server_bin'] = server_bin
 
 from cli.chat import chat_cmd
 from cli.run import run_cmd
