@@ -15,16 +15,16 @@ class TestQuickClassify:
         assert quick_classify("sup") == "trivial"
 
     def test_vague_inputs(self) -> None:
-        assert quick_classify("fix it") == "vague"
-        assert quick_classify("do something") == "vague"
-        assert quick_classify("check this") == "vague"
+        assert quick_classify("fix it") == "unknown"
+        assert quick_classify("do something") == "unknown"
+        assert quick_classify("check this") == "unknown"
 
     def test_task_inputs(self) -> None:
         assert quick_classify("create fibonacci function in fib.py") == "task"
         assert quick_classify("fix error in models.py") == "task"
         assert quick_classify("add unit tests for scheduler") == "task"
         assert quick_classify("def main(): pass") == "task"
-        assert quick_classify("/plan build a full web app") == "task"
+        assert quick_classify("/plan build a full web app") == "unknown"
         assert quick_classify("refactor validation pipeline") == "task"
 
 

@@ -41,12 +41,12 @@ CODE_SIGNALS = [
 
 
 def quick_classify(text: str) -> str:
-    """Classify user input into 'trivial', 'vague', or 'task'.
+    """Classify user input into 'trivial', 'vague', 'task', or 'unknown'.
 
     Returns:
         'trivial': Greetings, gibberish (e.g. 'hhmm', 'HELLO NAHH'), empty strings
-        'vague': Extremely short non-descriptive requests (e.g. 'fix it', 'check this')
-        'task': Actionable coding request or multi-word task query
+        'task': Actionable coding request containing clear code signals
+        'unknown': Needs LLM classification
     """
     if not text:
         return "trivial"
@@ -63,17 +63,14 @@ def quick_classify(text: str) -> str:
 
     # Specific vague phrases check
     if t in ("fix it", "check this", "do something", "help me"):
-        return "vague"
+        return "unknown"
 
-    # Check for code signals
-    if any(sig in t for sig in CODE_SIGNALS):
+    # Check for strong code signals
+    if any(sig in t for sig in CODE_SIGNALS) or t.startswith("/plan"):
         return "task"
 
-    # If short (<= 3 words) and lacks specific signals, classify as vague
-    if len(words) <= 3:
-        return "vague"
-
-    return "task"
+    # For everything else (including questions > 3 words), ask the LLM
+    return "unknown"
 
 
 def _load_classifier_prompt() -> str:
@@ -123,13 +120,12 @@ def classify_input(text: str, project_context: str = "") -> str:
     """Two-stage input gate classifier.
 
     Stage 1: Quick regex/keyword heuristic (quick_classify).
-    Stage 2: Fast LLM classifier (llm_classify) if Stage 1 returned 'vague'.
+    Stage 2: Fast LLM classifier (llm_classify) if Stage 1 returned 'unknown'.
     """
     stage1 = quick_classify(text)
     if stage1 == "trivial":
         return "trivial"
-    if stage1 == "vague":
-        return llm_classify(text, project_context)
     if stage1 == "task":
         return "task"
-    return stage1
+    
+    return llm_classify(text, project_context)
