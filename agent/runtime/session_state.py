@@ -16,7 +16,13 @@ class SessionState:
     pending_tasks: list[str] = field(default_factory=list)
     last_files_modified: list[str] = field(default_factory=list)
     open_errors: list[str] = field(default_factory=list)
+    chat_history: list[dict[str, str]] = field(default_factory=list)
 
+    def append_chat_message(self, role: str, content: str) -> None:
+        """Append a message and trim history to the last 10 messages."""
+        self.chat_history.append({"role": role, "content": content})
+        if len(self.chat_history) > 10:
+            self.chat_history = self.chat_history[-10:]
 
 def load_session_state(project_dir: str) -> SessionState:
     """Read session_state.json from project_dir. Returns empty SessionState if missing or corrupt."""
@@ -35,6 +41,7 @@ def load_session_state(project_dir: str) -> SessionState:
             pending_tasks=list(data.get("pending_tasks") or []),
             last_files_modified=list(data.get("last_files_modified") or []),
             open_errors=list(data.get("open_errors") or []),
+            chat_history=list(data.get("chat_history") or []),
         )
     except Exception:
         return SessionState()
