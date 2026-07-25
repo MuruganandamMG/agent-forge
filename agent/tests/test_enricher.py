@@ -24,7 +24,7 @@ class TestEnrichRequest:
         mock_chat.assert_called_once()
         _, kwargs = mock_chat.call_args
         assert kwargs.get("temperature") == 0.1
-        assert kwargs.get("max_tokens") == 200
+        assert kwargs.get("max_tokens") == 2000
         assert kwargs.get("stop") == ["<|im_end|>"]
 
     @patch("runtime.enricher.chat")

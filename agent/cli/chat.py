@@ -2,7 +2,7 @@ import sys
 import click
 from runtime.gate import classify_input
 from runtime.indexer import generate_project_context
-from runtime.models import ensure_server, health_check
+
 from runtime.scheduler import run_agent
 from runtime.session_state import load_session_state, print_resume_banner, save_session_state
 
@@ -19,18 +19,7 @@ def chat_cmd(ctx):
     click.echo(f"🏠 Project: {project_dir}")
     click.echo(f"🤖 Model: {model}")
     
-    # Ensure model server is running
-    if not health_check():
-        click.echo("🚀 Starting llama-server...")
-        try:
-            proc = ensure_server(model, port=port, ctx_size=ctx_size, server_bin=server_bin)
-            if proc:
-                click.echo(f"✅ llama-server started (PID {proc.pid})")
-        except (FileNotFoundError, RuntimeError) as e:
-            click.echo(f"❌ {e}", err=True)
-            sys.exit(1)
-    else:
-        click.echo("✅ llama-server already running")
+    click.echo("✅ assuming model server is running or reachable.")
         
     print("🔍 Indexing project...")
     

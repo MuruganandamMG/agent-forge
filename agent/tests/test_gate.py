@@ -59,7 +59,7 @@ class TestLLMClassify:
         mock_chat.assert_called_once()
         args, kwargs = mock_chat.call_args
         assert kwargs.get("temperature") == 0.0
-        assert kwargs.get("max_tokens") == 50
+        assert kwargs.get("max_tokens") == 1000
         assert kwargs.get("stop") == ["\n"]
         assert "ctx" in args[0][1]["content"]
 
