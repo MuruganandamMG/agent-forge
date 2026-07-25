@@ -1,33 +1,64 @@
-"""Prompt builder: assembles context within a token budget."""
+from pathlib import Path
 
 from runtime.models import count_tokens
 
 
+def load_agents_md(project_dir: str) -> str:
+    """Check for AGENTS.md in project_dir or agent/AGENTS.md."""
+    p_path = Path(project_dir)
+    candidates = [
+        p_path / "AGENTS.md",
+        p_path / "agent" / "AGENTS.md",
+        Path(__file__).parent.parent / "AGENTS.md",
+    ]
+    for candidate in candidates:
+        if candidate.exists() and candidate.is_file():
+            try:
+                content = candidate.read_text(encoding="utf-8")
+                if content.strip():
+                    return content
+            except OSError:
+                continue
+    return ""
+
+
 def build_context(
     query: str,
-    memory,  # Memory instance or duck-typed object with .retrieve()
-    file_contents: str,
-    style: str,
+    memory=None,  # Memory instance or duck-typed object with .retrieve()
+    file_contents: str = "",
+    style: str = "",
+    agents_md: str = "",
+    file_tree: str = "",
     token_budget: int = 6000,
 ) -> str:
     """Build the context string for the executor, trimmed to token budget.
 
     Priority order (highest to lowest):
-    1. Style guide (always included in full)
-    2. File contents (trimmed if needed)
-    3. Memory results (trimmed if needed)
+    1. AGENTS.md project rules (always included first)
+    2. File tree (workspace directory structure)
+    3. Style guide (if provided)
+    4. File contents (trimmed if needed)
+    5. Memory results (trimmed if needed)
     """
     sections: list[tuple[str, str]] = []
 
-    # Priority 1: Style (always full)
+    # Priority 1: AGENTS.md
+    if agents_md:
+        sections.append(("AGENTS.MD", agents_md))
+
+    # Priority 2: File tree
+    if file_tree:
+        sections.append(("FILE TREE", file_tree))
+
+    # Priority 3: Style
     if style:
         sections.append(("STYLE", style))
 
-    # Priority 2: File contents
+    # Priority 4: File contents
     if file_contents:
         sections.append(("CURRENT FILES", file_contents))
 
-    # Priority 3: Memory
+    # Priority 5: Memory
     if memory is not None:
         try:
             memory_results = memory.retrieve(query, collection="reflections", n_results=5)
@@ -61,3 +92,4 @@ def build_context(
             used_tokens += section_tokens
 
     return "".join(result_parts)
+

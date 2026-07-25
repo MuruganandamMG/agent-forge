@@ -109,7 +109,7 @@ def llm_classify(text: str, project_context: str = "") -> str:
             {"role": "user", "content": user_content},
         ]
 
-        response = chat(messages, temperature=0.0, max_tokens=50, stop=["\n"])
+        response = chat(messages, temperature=0.0, max_tokens=1000, stop=["\n"])
         res = response.strip().lower()
         first_word = res.split()[0] if res else ""
         if first_word in ("task", "vague", "chat"):

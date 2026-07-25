@@ -17,13 +17,14 @@ if sys.platform == "win32":
 
 import click
 
+from runtime.context import load_agents_md
+from runtime.filetree import generate_filetree
 from runtime.gate import classify_input
 from runtime.indexer import generate_project_context
-from runtime.models import ensure_server, health_check
 from runtime.scheduler import run_agent
 from runtime.session_state import load_session_state, print_resume_banner, save_session_state
 
-DEFAULT_MODEL = r"E:\AI\Models\Agentic AI's in CLI\Qwen3-8B\Qwen3-8B-Q4_K_M.gguf"
+DEFAULT_MODEL = "gemini-2.5-pro"
 
 @click.group(invoke_without_command=False)
 @click.option(
@@ -36,9 +37,9 @@ DEFAULT_MODEL = r"E:\AI\Models\Agentic AI's in CLI\Qwen3-8B\Qwen3-8B-Q4_K_M.gguf
 @click.option(
     "--model",
     "-m",
-    type=click.Path(exists=True),
+    type=str,
     default=DEFAULT_MODEL,
-    help="Path to the GGUF model file.",
+    help="Name of the Gemini model to use.",
 )
 @click.option("--port", default=8081, help="Port for llama-server.")
 @click.option("--ctx-size", "-c", default=8192, help="Context size for llama-server.")
@@ -64,5 +65,4 @@ main.add_command(status_cmd)
 main.add_command(config_cmd)
 
 if __name__ == "__main__":
-    main.add_command(chat_cmd)
     main()

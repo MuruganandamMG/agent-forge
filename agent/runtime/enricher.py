@@ -32,7 +32,7 @@ def enrich_request(raw_query: str, project_context: str, memory_context: str = "
         enrichment_text = chat(
             messages=messages,
             temperature=0.1,
-            max_tokens=200,
+            max_tokens=2000,
             stop=["<|im_end|>"],
         )
         return f"{raw_query}\n\n--- Enrichment ---\n{enrichment_text}"

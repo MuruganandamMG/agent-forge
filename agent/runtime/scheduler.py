@@ -2,8 +2,9 @@
 
 from pathlib import Path
 
-from runtime.context import build_context
+from runtime.context import build_context, load_agents_md
 from runtime.enricher import enrich_request
+from runtime.filetree import generate_filetree
 from runtime.memory import Memory
 from runtime.models import chat
 from runtime.sandbox import Sandbox
@@ -58,7 +59,7 @@ def _execute(task: dict, file_contents: str, style: str, context: str = "") -> s
     ]
 
     stop_seqs = ["```\n\n", "\n\nTask:", "<|im_end|>"]
-    return chat(messages, temperature=0.1, max_tokens=800, stop=stop_seqs)
+    return chat(messages, temperature=0.1, max_tokens=4000, stop=stop_seqs)
 
 
 def _gather_file_contents(files: list[str], project_dir: str) -> str:
@@ -171,6 +172,9 @@ def run_agent(user_query: str, project_dir: str, project_context: str = "") -> d
     files_modified: list[str] = []
 
     # Step 2: Execute each task
+    agents_md = load_agents_md(project_dir)
+    file_tree = generate_filetree(project_dir)
+
     while True:
         task = task_graph.next_task()
         if task is None:
@@ -202,7 +206,9 @@ def run_agent(user_query: str, project_dir: str, project_context: str = "") -> d
             memory=memory,
             file_contents="",
             style="",
-            token_budget=2000,
+            agents_md=agents_md,
+            file_tree=file_tree,
+            token_budget=6000,
         )
         if project_context:
             extra_context = f"{project_context}\n\n{extra_context}".strip()
