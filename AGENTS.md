@@ -1,7 +1,7 @@
 # AGENTS.md
 
 ## Project Overview
-This project is a **Git-native CLI coding agent** built with **Python**, **pytest**, and **llama-server**. It executes tasks in terminal/repo environments, managing diffs, sandbox execution, context resolution, and scheduling.
+This project is a **Git-native CLI coding agent** built with **Python**, **pytest**, and **GEMINI MODEL'S**. It executes tasks in terminal/repo environments, managing diffs, sandbox execution, context resolution, and scheduling.
 
 ## Architectural Layout
 The core agent logic is structured inside `agent/runtime/`:
@@ -15,11 +15,15 @@ The core agent logic is structured inside `agent/runtime/`:
 - `validate.py`: Validation routines for outputs, edits, and structural sanity checks.
 - `scheduler.py`: Task scheduling, async job coordination, and background execution management.
 
+## Git Workflow & Branching Strategy
+- **Never Push Directly to `main`**: All features, fixes, and refactors must happen on a dedicated branch (e.g., `feat/<name>`, `fix/<name>`).
+- **Cloud Synchronization**: Always push local branches to the remote GitHub repository (`git push -u origin <branch-name>`). Do not keep branches local-only.
+- **Pull Requests**: Once work is completed and verified on the branch, push to remote and use a Pull Request to merge into `main`. 
+
 ## Coding & Patch Standards
 - **Git Diffs**: Always generate and parse patches using standard unified git diff format (`diff -u` / `git diff`).
 - **Clean Code**: Keep implementation concise, modular, readable, and maintain high cohesion with zero unnecessary fluff or boilerplate.
 - **No Swallowed Errors**: Handle errors explicitly without masking runtime exceptions.
-- **Push into github and create a Pr as well"2
 ## Testing Guidelines
 - **Framework**: Use `pytest` for test suites and validation.
 - **Verification**: Run `pytest` to verify changes before marking tasks as complete.

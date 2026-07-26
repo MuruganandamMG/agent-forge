@@ -6,7 +6,7 @@ from runtime.context import build_context, load_agents_md
 from runtime.enricher import enrich_request
 from runtime.filetree import generate_filetree
 from runtime.memory import Memory
-from runtime.models import chat
+from runtime.subagents.core import run_implementer, run_planner, run_reviewer
 from runtime.sandbox import Sandbox
 from runtime.task_graph import TaskGraph
 from runtime.validate import validate
@@ -27,39 +27,6 @@ def _load_style() -> str:
     if _style_path.exists():
         return _style_path.read_text(encoding="utf-8")
     return ""
-
-
-def _plan(user_query: str, context: str = "") -> str:
-    """Call the planner role to generate a JSON task plan."""
-    system = _load_prompt("planner_system.txt")
-    messages: list[dict] = [
-        {"role": "system", "content": system},
-    ]
-    if context:
-        messages.append({"role": "user", "content": f"CONTEXT:\n{context}"})
-    messages.append({"role": "user", "content": user_query})
-
-    return chat(messages, temperature=0.2)
-
-
-def _execute(task: dict, file_contents: str, style: str, context: str = "") -> str:
-    """Call the executor role to generate a unified diff for one task."""
-    system = _load_prompt("executor_system.txt")
-    user_content = f"TASK:\n{task['description']}\n\nFILES:\n{task.get('files', [])}"
-    if file_contents:
-        user_content += f"\n\nCURRENT FILE CONTENTS:\n{file_contents}"
-    if style:
-        user_content += f"\n\nSTYLE:\n{style}"
-    if context:
-        user_content += f"\n\nADDITIONAL CONTEXT:\n{context}"
-
-    messages: list[dict] = [
-        {"role": "system", "content": system},
-        {"role": "user", "content": user_content},
-    ]
-
-    stop_seqs = ["```\n\n", "\n\nTask:", "<|im_end|>"]
-    return chat(messages, temperature=0.1, max_tokens=4000, stop=stop_seqs)
 
 
 def _gather_file_contents(files: list[str], project_dir: str) -> str:
@@ -136,12 +103,13 @@ def run_agent(user_query: str, project_dir: str, project_context: str = "") -> d
 
     if is_plan_mode:
         # Step 1: Multi-step Planner
-        print("🧠 Planning...")
-        plan_json = _plan(enriched_query, context=project_context)
+        from runtime.ui import console
+        console.print("[bold cyan]🧠 Planning...[/bold cyan]")
+        plan_json = run_planner(enriched_query, project_context=project_context)
         try:
             task_graph = TaskGraph.from_plan_json(plan_json)
         except ValueError:
-            print(f"\n🤖 {plan_json.strip()}\n")
+            console.print(f"\n[italic]{plan_json.strip()}[/italic]\n")
             return AgentResult(
                 goal=clean_query,
                 completed=[],
@@ -151,8 +119,8 @@ def run_agent(user_query: str, project_dir: str, project_context: str = "") -> d
                 raw=plan_json,
             )
 
-        print(f"📋 Plan: {task_graph.goal}")
-        print(task_graph.summary())
+        console.print(f"[bold green]📋 Plan:[/bold green] {task_graph.goal}")
+        console.print(task_graph.summary())
     else:
         # Direct execution mode (single task, no planner overhead)
         task_graph = TaskGraph(
@@ -198,7 +166,8 @@ def run_agent(user_query: str, project_dir: str, project_context: str = "") -> d
                     pass
             continue
 
-        print(f"\n⚡ Executing Task {task_id}: {task['description']}")
+        from runtime.ui import console, print_error
+        console.print(f"\n[bold magenta]⚡ Executing Task {task_id}:[/bold magenta] {task['description']}")
 
         file_contents = _gather_file_contents(task.get("files", []), project_dir)
         extra_context = build_context(
@@ -212,87 +181,70 @@ def run_agent(user_query: str, project_dir: str, project_context: str = "") -> d
         )
         if project_context:
             extra_context = f"{project_context}\n\n{extra_context}".strip()
+            
         last_error = ""
 
         for attempt in range(1, MAX_RETRIES + 1):
             # Generate diff
-            if last_error:
-                task_with_error = dict(task)
-                task_with_error["description"] += (
-                    f"\n\n--- PREVIOUS ATTEMPT FAILED ---\n"
-                    f"Attempt: {attempt - 1}/{MAX_RETRIES}\n"
-                    f"Error:\n{last_error}\n"
-                    f"--- END ERROR ---\n"
-                    f"Fix the issues above and generate a corrected diff."
-                )
-                diff = _execute(task_with_error, file_contents, style, context=extra_context)
-            else:
-                diff = _execute(task, file_contents, style, context=extra_context)
+            diff = run_implementer(task["description"], file_contents, feedback=last_error)
 
             # Try to apply the diff
             if not diff.strip():
                 last_error = "Executor returned empty output."
-                print(f"  ⚠️ Attempt {attempt}: empty diff")
+                console.print(f"  [yellow]⚠️ Attempt {attempt}: empty diff[/yellow]")
                 continue
 
             applied = sandbox.apply_diff(diff)
             if not applied:
-                last_error = "git apply failed on the generated diff."
-                print(f"  ⚠️ Attempt {attempt}: diff didn't apply cleanly")
+                last_error = "git apply failed on the generated diff. Make sure to return standard unified diff format."
+                console.print(f"  [yellow]⚠️ Attempt {attempt}: diff didn't apply cleanly[/yellow]")
                 continue
 
-            # Validate
+            # Validate locally before Subagent Review
             vresult = validate(project_dir, run_pytest=True)
-            if vresult.passed:
-                # Ask for human approval
-                print(f"\n  ✅ Validation passed. Diff for Task {task_id}:")
-                print("  " + "-" * 60)
-                print(diff)
-                print("  " + "-" * 60)
-                approval = input("  Apply this change? [y/n]: ").strip().lower()
-                if approval == "y":
-                    commit_hash = sandbox.checkpoint(task["description"])
-                    task_graph.mark_done(task_id)
-                    completed.append(task["description"])
-                    for f in task.get("files", []):
-                        if f not in files_modified:
-                            files_modified.append(f)
-                    print(f"  ✅ Applied and committed: {commit_hash[:8]}")
+            if not vresult.passed:
+                last_error = f"Validation failed at {vresult.stage}: {vresult.errors[:500]}"
+                console.print(f"  [yellow]⚠️ Attempt {attempt}: {last_error}[/yellow]")
+                sandbox._run_git("checkout", ".")
+                continue
+                
+            # Delegate to Reviewer Subagent
+            console.print("  [cyan]🔍 Sending to Reviewer Subagent...[/cyan]")
+            review = run_reviewer(task["description"], diff)
+            
+            if review == "APPROVED":
+                commit_hash = sandbox.checkpoint(task["description"])
+                task_graph.mark_done(task_id)
+                completed.append(task["description"])
+                for f in task.get("files", []):
+                    if f not in files_modified:
+                        files_modified.append(f)
+                console.print(f"  [bold green]✅ Approved and committed:[/bold green] {commit_hash[:8]}")
 
-                    if memory is not None:
-                        try:
-                            memory.store_session(
-                                user_query, f"Task {task_id}: {task['description']}"
-                            )
-                            memory.reflect(
-                                task["description"],
-                                f"Applied diff to {task.get('files', [])}",
-                            )
-                        except Exception:
-                            pass
-                else:
-                    sandbox._run_git("checkout", ".", check=False)
-                    task_graph.mark_failed(task_id, "User rejected")
-                    failed.append(f"Task {task_id} ({task['description']}): User rejected")
-                    print("  ⏭️ Skipped by user")
+                if memory is not None:
+                    try:
+                        memory.store_session(user_query, f"Task {task_id}: {task['description']}")
+                        memory.reflect(task["description"], f"Applied diff to {task.get('files', [])}")
+                    except Exception:
+                        pass
                 break
             else:
-                last_error = f"[{vresult.stage}] {vresult.errors[:500]}"
-                print(f"  ⚠️ Attempt {attempt}: validation failed at {vresult.stage}")
-                # Revert the failed application
+                last_error = f"Reviewer Feedback:\n{review}"
+                console.print(f"  [yellow]⚠️ Attempt {attempt}: Reviewer requested changes.[/yellow]")
                 sandbox._run_git("checkout", ".")
+                
         else:
             task_graph.mark_failed(
                 task_id, f"Max retries ({MAX_RETRIES}) exceeded: {last_error}"
             )
             failed.append(f"Task {task_id} ({task['description']}): {last_error}")
-            print(f"  ❌ Task {task_id} failed after {MAX_RETRIES} attempts")
+            console.print(f"  [bold red]❌ Task {task_id} failed after {MAX_RETRIES} attempts[/bold red]")
 
     # Summary
     summary = task_graph.summary()
-    print(f"\n{'=' * 60}")
-    print("📊 Session Summary")
-    print(summary)
+    console.print(f"\n[dim]{'=' * 60}[/dim]")
+    console.print("[bold]📊 Session Summary[/bold]")
+    console.print(summary)
     return AgentResult(
         goal=task_graph.goal,
         completed=completed,
