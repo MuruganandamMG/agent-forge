@@ -4,6 +4,7 @@ from dataclasses import asdict, dataclass, field
 from datetime import datetime, timezone
 import json
 from pathlib import Path
+from runtime.ui import console
 
 
 @dataclass
@@ -60,10 +61,10 @@ def print_resume_banner(state: SessionState) -> None:
     if not state.last_goal:
         return
 
-    print(f"📋 Last session: {state.last_goal}")
+    console.print(f"\n[bold]📋 Last session:[/bold] {state.last_goal}")
     for task in state.completed_tasks[-3:]:
-        print(f"   ✅ {task}")
+        console.print(f"   [green]✅ {task}[/green]")
     for task in state.pending_tasks[:3]:
-        print(f"   ⏳ {task}")
+        console.print(f"   [yellow]⏳ {task}[/yellow]")
     for error in state.open_errors[:2]:
-        print(f"   ❌ {error}")
+        console.print(f"   [red]❌ {error}[/red]")
