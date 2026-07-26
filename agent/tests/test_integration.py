@@ -9,9 +9,10 @@ from runtime.scheduler import run_agent
 
 
 class TestEndToEnd:
-    @patch("runtime.scheduler.chat")
-    @patch("builtins.input", return_value="y")  # Auto-approve
-    def test_full_cycle_creates_file(self, mock_input, mock_chat, tmp_path) -> None:
+    @patch("runtime.scheduler.run_reviewer")
+    @patch("runtime.scheduler.run_implementer")
+    @patch("runtime.scheduler.run_planner")
+    def test_full_cycle_creates_file(self, mock_run_planner, mock_run_implementer, mock_run_reviewer, tmp_path) -> None:
         """Full cycle: plan -> execute -> validate -> apply -> commit."""
         project_dir = str(tmp_path)
 
@@ -35,7 +36,9 @@ class TestEndToEnd:
             "+    print('hello world')\n"
         )
 
-        mock_chat.side_effect = [plan, diff]
+        mock_run_planner.return_value = plan
+        mock_run_implementer.return_value = diff
+        mock_run_reviewer.return_value = "APPROVED"
 
         with patch("runtime.scheduler.validate") as mock_validate:
             from runtime.validate import ValidationResult
@@ -43,17 +46,19 @@ class TestEndToEnd:
             mock_validate.return_value = ValidationResult(
                 passed=True, stage="all", errors="", details={"black": True, "ruff": True}
             )
-            result = run_agent("/plan create hello.py", project_dir)
+            with patch("runtime.context.count_tokens", return_value=100):
+                result = run_agent("/plan create hello.py", project_dir)
 
-        assert "✅" in result or "done" in result.lower()
+        assert "✅" in result.get("summary", "") or "done" in result.get("summary", "").lower()
         # Verify the file was actually created in sandbox project_dir
         hello_file = tmp_path / "hello.py"
         assert hello_file.exists()
         assert "hello world" in hello_file.read_text(encoding="utf-8")
 
-    @patch("runtime.scheduler.chat")
-    def test_invalid_plan_reports_error(self, mock_chat, tmp_path) -> None:
+    @patch("runtime.scheduler.run_planner")
+    def test_invalid_plan_reports_error(self, mock_run_planner, tmp_path) -> None:
         """If the planner returns non-JSON, the agent should return the raw message."""
-        mock_chat.return_value = "this is not json"
-        result = run_agent("/plan do something", str(tmp_path))
-        assert result == "this is not json"
+        mock_run_planner.return_value = "this is not json"
+        with patch("runtime.context.count_tokens", return_value=100):
+            result = run_agent("/plan do something", str(tmp_path))
+        assert "this is not json" in result.raw

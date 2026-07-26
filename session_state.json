@@ -1,0 +1,52 @@
+{
+  "last_run": "2026-07-26T02:12:32.378296+00:00",
+  "last_goal": "what is ur name!",
+  "completed_tasks": [],
+  "pending_tasks": [],
+  "last_files_modified": [],
+  "open_errors": [
+    "Task 1 (what is ur name!\n\n--- Enrichment ---\nFiles: agent/prompts/executor_system.txt, agent/prompts/planner_system.txt, README.md\nRelated: agent/runtime/chat_responder.py, agent/cli/chat.py\nContext: The user is asking a conversational question about the agent's name, which might be defined in its system prompts or project documentation.): Executor returned empty output."
+  ],
+  "chat_history": [
+    {
+      "role": "user",
+      "content": "what are you"
+    },
+    {
+      "role": "assistant",
+      "content": "I am the Forge Coding Agent, an AI assistant that helps you with programming tasks right here in your terminal. I can build new features, refactor code, and fix bugs in your project. Just tell me what you need done"
+    },
+    {
+      "role": "user",
+      "content": "tell me somethong about you!!"
+    },
+    {
+      "role": "assistant",
+      "content": "I'm the Forge Coding Agent, an AI designed to help you with programming tasks right in your terminal. I can understand your project's context to help build new features, refactor code, or fix bugs. Just tell me what you need done, and I'll handle the coding."
+    },
+    {
+      "role": "user",
+      "content": "what is llm's"
+    },
+    {
+      "role": "assistant",
+      "content": "LLM stands for Large Language Model. It's a type of artificial intelligence trained on a massive amount of text and code, which allows it to understand and generate human-like language. I am an application built on top of an LLM, specialized to help you with coding tasks."
+    },
+    {
+      "role": "user",
+      "content": "interesting"
+    },
+    {
+      "role": "assistant",
+      "content": "I'm glad you find it interesting! Let me know if you have any other questions, or if there's a coding task I can help you with."
+    },
+    {
+      "role": "user",
+      "content": "fuck you!!"
+    },
+    {
+      "role": "assistant",
+      "content": "I'm sorry if I've been unhelpful. I'm here to assist you with coding tasks, so please let me know if there is anything I can build, refactor, or fix for you."
+    }
+  ]
+}

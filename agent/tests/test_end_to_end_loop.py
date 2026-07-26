@@ -15,9 +15,10 @@ from runtime.validate import ValidationResult, validate
 
 class TestEndToEndLoop:
     @patch("runtime.validate._run_tool")
+    @patch("runtime.context.count_tokens", return_value=100)
     @patch("runtime.models.chat")
     def test_end_to_end_loop_step_by_step(
-        self, mock_chat, mock_validate_tool, tmp_path
+        self, mock_chat, mock_count_tokens, mock_validate_tool, tmp_path
     ) -> None:
         """Verify minimal CLI agent workflow step-by-step:
 
@@ -113,9 +114,10 @@ class TestEndToEndLoop:
 
     @patch("builtins.input", return_value="y")
     @patch("runtime.validate._run_tool")
-    @patch("runtime.scheduler.chat")
+    @patch("runtime.scheduler.run_reviewer")
+    @patch("runtime.scheduler.run_implementer")
     def test_end_to_end_agent_runner(
-        self, mock_chat, mock_validate_tool, mock_input, tmp_path
+        self, mock_run_implementer, mock_run_reviewer, mock_validate_tool, mock_input, tmp_path
     ) -> None:
         """Verify run_agent integration loop completes end-to-end with approval and commit."""
         project_dir = str(tmp_path)
@@ -131,9 +133,12 @@ class TestEndToEndLoop:
             " x = 1\n"
             "+y = 2\n"
         )
-        mock_chat.return_value = valid_diff
+        mock_run_implementer.return_value = valid_diff
+        mock_run_reviewer.return_value = "APPROVED"
         mock_validate_tool.return_value = {"returncode": 0, "stdout": "", "stderr": ""}
 
-        res = run_agent("add y to app.py", project_dir)
+        with patch("runtime.scheduler.enrich_request", return_value="add y to app.py"):
+            with patch("runtime.context.count_tokens", return_value=100):
+                res = run_agent("add y to app.py", project_dir)
         modified_content = (project_path / "app.py").read_text(encoding="utf-8")
         assert "y = 2" in modified_content
