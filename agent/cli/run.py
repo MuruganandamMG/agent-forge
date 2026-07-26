@@ -3,9 +3,9 @@ import os
 import sys
 from runtime.gate import classify_input
 from runtime.indexer import generate_project_context
-
 from runtime.scheduler import run_agent
 from runtime.session_state import load_session_state, save_session_state
+from runtime.ui import print_banner, print_error, print_success, status_spinner, console
 
 @click.command("run")
 @click.argument("task_input", nargs=-1, required=True)
@@ -21,28 +21,31 @@ def run_cmd(ctx, task_input):
     if os.path.isfile(file_path):
         with open(file_path, "r", encoding="utf-8") as f:
             query = f.read().strip()
-            click.echo(f"📄 Loaded task from {input_str}")
+            console.print(f"[dim]📄 Loaded task from {input_str}[/dim]")
     else:
         query = input_str
         
     if not query:
         raise click.ClickException("Task input cannot be empty.")
 
-    project_ctx = generate_project_context(project_dir)
-    file_count = project_ctx.count("\n") - 5
+    with status_spinner("Indexing project"):
+        project_ctx = generate_project_context(project_dir)
+        file_count = project_ctx.count("\n") - 5
     
-    # Unified banner
-    click.echo(f"⚡ Forge Agent | Model: {model} | Project: {project_dir}")
-    click.echo(f"📁 Indexed {file_count} files")
+    print_banner(model, project_dir, file_count)
     
     state = load_session_state(project_dir)
     
     try:
-        intent = classify_input(query, project_context=project_ctx)
+        with status_spinner("Classifying request"):
+            intent = classify_input(query, project_context=project_ctx)
+        
         if intent in ("trivial", "vague", "chat"):
             raise click.ClickException(f"Input classified as '{intent}'. Please provide a clear coding task.")
             
-        res = run_agent(query, project_dir, project_context=project_ctx)
+        with status_spinner("Executing agent task"):
+            res = run_agent(query, project_dir, project_context=project_ctx)
+            
         state.last_goal = query
         
         if isinstance(res, dict):
@@ -62,8 +65,11 @@ def run_cmd(ctx, task_input):
 
         state.pending_tasks = []
         save_session_state(state, project_dir)
-        click.echo("✅ Task complete.")
-    except click.ClickException:
+        print_success("Task complete.")
+        
+    except click.ClickException as e:
+        print_error(str(e))
         raise
     except Exception as e:
+        print_error(str(e))
         raise click.ClickException(str(e))
