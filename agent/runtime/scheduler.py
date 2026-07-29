@@ -202,7 +202,10 @@ def run_agent(user_query: str, project_dir: str, project_context: str = "") -> d
 
         for attempt in range(1, MAX_RETRIES + 1):
             render_step(4, 7, "Tool Agent", "running", f"Attempt {attempt}/{MAX_RETRIES}")
-            tool_output = run_tool_agent(task["description"])
+            prompt = task["description"]
+            if last_error:
+                prompt += f"\n\nPrevious Failure Trace:\n{last_error}\nPlease investigate and fix the error."
+            tool_output = run_tool_agent(prompt)
             render_subagent_card(f"🛠️ Tool Agent Output (Attempt {attempt})", tool_output, border_style="cyan")
 
             # Validate locally after tool operations
