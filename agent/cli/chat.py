@@ -1,5 +1,6 @@
 import sys
 import click
+from cli.tui import handle_slash_command
 from runtime.gate import classify_input
 from runtime.indexer import generate_project_context
 from runtime.scheduler import run_agent
@@ -23,12 +24,22 @@ def chat_cmd(ctx):
     state = load_session_state(project_dir)
     print_resume_banner(state)
 
-    console.print("\n[bold]💬 Enter your coding request[/bold] (prefix with '/plan <request>' for multi-step planning, or Ctrl+C to exit):\n")
+    console.print("\n[bold]💬 Enter your coding request[/bold] (prefix with '/plan <request>' for multi-step planning, or type /help):\n")
     
     while True:
         try:
             query = console.input("[bold cyan]you>[/bold cyan] ").strip()
             if not query: continue
+
+            # Handle slash commands
+            handled, slash_res = handle_slash_command(query)
+            if handled:
+                if slash_res == "EXIT_SESSION":
+                    console.print("[bold yellow]Goodbye![/bold yellow]")
+                    break
+                console.print(slash_res)
+                continue
+
             if query.lower() in ("exit", "quit", "q"): break
 
             state.append_chat_message("user", query)
