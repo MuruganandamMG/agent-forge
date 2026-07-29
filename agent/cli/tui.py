@@ -1,5 +1,6 @@
 from typing import Tuple
 from prompt_toolkit import PromptSession
+from prompt_toolkit.completion import WordCompleter
 from prompt_toolkit.history import InMemoryHistory
 from runtime.ui import console
 
@@ -12,6 +13,11 @@ COMMANDS_HELP = """
   [green]/help[/green]          - Display this help message
   [green]/exit[/green] or [green]/quit[/green] - Exit chat session
 """
+
+SLASH_WORDS = ["/plan", "/status", "/compact", "/clear", "/help", "/exit", "/quit"]
+
+def get_slash_completer() -> WordCompleter:
+    return WordCompleter(SLASH_WORDS, ignore_case=True)
 
 def handle_slash_command(user_input: str) -> Tuple[bool, str]:
     cmd = user_input.strip()
@@ -39,7 +45,7 @@ def handle_slash_command(user_input: str) -> Tuple[bool, str]:
         return True, f"Unknown command: {action}. Type /help for available commands."
 
 def run_tui_loop(project_dir: str = "."):
-    session = PromptSession(history=InMemoryHistory())
+    session = PromptSession(history=InMemoryHistory(), completer=get_slash_completer())
     console.print("[bold cyan]🤖 agent-forge TUI Session Started[/bold cyan]")
     console.print("Type your request or [green]/help[/green] for available slash commands.\n")
 
