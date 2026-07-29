@@ -7,6 +7,7 @@ from runtime.enricher import enrich_request
 from runtime.filetree import generate_filetree
 from runtime.memory import Memory
 from runtime.subagents.core import run_implementer, run_planner, run_reviewer
+from runtime.subagents.tool_agent import run_tool_agent
 from runtime.sandbox import Sandbox
 from runtime.task_graph import TaskGraph
 from runtime.validate import validate
@@ -200,27 +201,11 @@ def run_agent(user_query: str, project_dir: str, project_context: str = "") -> d
         last_error = ""
 
         for attempt in range(1, MAX_RETRIES + 1):
-            render_step(4, 7, "Implementer Subagent", "running", f"Attempt {attempt}/{MAX_RETRIES}")
-            # Generate diff
-            diff = run_implementer(task["description"], file_contents, feedback=last_error)
+            render_step(4, 7, "Tool Agent", "running", f"Attempt {attempt}/{MAX_RETRIES}")
+            tool_output = run_tool_agent(task["description"])
+            render_subagent_card(f"🛠️ Tool Agent Output (Attempt {attempt})", tool_output, border_style="cyan")
 
-            # Try to apply the diff
-            if not diff.strip():
-                last_error = "Executor returned empty output."
-                render_step(4, 7, "Implementer Subagent", "failed", "Empty diff returned")
-                continue
-
-            render_subagent_card(f"📝 Implementer Unified Diff (Attempt {attempt})", diff, border_style="cyan", is_diff=True)
-
-            render_step(5, 7, "Sandbox Diff Apply", "running", "Applying diff")
-            applied = sandbox.apply_diff(diff)
-            if not applied:
-                last_error = "git apply failed on the generated diff. Make sure to return standard unified diff format."
-                render_step(5, 7, "Sandbox Diff Apply", "failed", "git apply failed")
-                continue
-            render_step(5, 7, "Sandbox Diff Apply", "done", "Diff applied cleanly")
-
-            # Validate locally before Subagent Review
+            # Validate locally after tool operations
             render_step(6, 7, "Validator", "running", "Running test suite")
             vresult = validate(project_dir, run_pytest=True)
             if not vresult.passed:
@@ -232,7 +217,7 @@ def run_agent(user_query: str, project_dir: str, project_context: str = "") -> d
                 
             # Delegate to Reviewer Subagent
             render_step(7, 7, "Reviewer Subagent", "running", "Analyzing code changes")
-            review = run_reviewer(task["description"], diff)
+            review = run_reviewer(task["description"], tool_output)
             
             if review == "APPROVED":
                 commit_hash = sandbox.checkpoint(task["description"])
@@ -247,7 +232,7 @@ def run_agent(user_query: str, project_dir: str, project_context: str = "") -> d
                 if memory is not None:
                     try:
                         memory.store_session(user_query, f"Task {task_id}: {task['description']}")
-                        memory.reflect(task["description"], f"Applied diff to {task.get('files', [])}")
+                        memory.reflect(task["description"], f"Applied changes for {task.get('files', [])}")
                     except Exception:
                         pass
                 break
