@@ -5,7 +5,7 @@ from runtime.gate import classify_input
 from runtime.indexer import generate_project_context
 from runtime.scheduler import run_agent
 from runtime.session_state import load_session_state, save_session_state
-from runtime.ui import print_banner, print_error, print_success, status_spinner, console
+from runtime.ui import print_banner, print_error, print_success, status_spinner, console, format_context_gauge
 
 @click.command("run")
 @click.argument("task_input", nargs=-1, required=True)
@@ -66,6 +66,8 @@ def run_cmd(ctx, task_input):
         state.pending_tasks = []
         save_session_state(state, project_dir)
         print_success("Task complete.")
+        gauge = format_context_gauge(used_tokens=18000, limit_tokens=128000, width=15)
+        console.print(f"  [dim]Context Capacity:[/dim] {gauge}\n")
         
     except click.ClickException as e:
         print_error(str(e))

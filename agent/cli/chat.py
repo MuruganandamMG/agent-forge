@@ -6,7 +6,7 @@ from runtime.indexer import generate_project_context
 from runtime.scheduler import run_agent
 from runtime.session_state import load_session_state, print_resume_banner, save_session_state
 from runtime.chat_responder import generate_chat_response
-from runtime.ui import print_banner, print_error, print_markdown, status_spinner, console
+from runtime.ui import print_banner, print_error, print_markdown, status_spinner, console, format_context_gauge, render_subagent_card
 
 @click.command("chat")
 @click.pass_context
@@ -28,7 +28,8 @@ def chat_cmd(ctx):
     
     while True:
         try:
-            query = console.input("[bold cyan]you>[/bold cyan] ").strip()
+            prompt_str = f"[bold magenta]⚡ god-mode[/bold magenta] [bold cyan][{model}][/bold cyan] [bold white]❯[/bold white] "
+            query = console.input(prompt_str).strip()
             if not query: continue
 
             # Handle slash commands
@@ -50,9 +51,12 @@ def chat_cmd(ctx):
             if intent in ("trivial", "vague", "chat"):
                 with status_spinner("Generating response"):
                     response = generate_chat_response(query, state.chat_history[:-1], project_ctx)
-                console.print(f"\n🤖 [italic]{response}[/italic]\n")
+                render_subagent_card(f"🤖 Assistant [{model}]", response, border_style="magenta")
                 state.append_chat_message("assistant", response)
                 save_session_state(state, project_dir)
+                
+                gauge = format_context_gauge(used_tokens=15000, limit_tokens=128000, width=15)
+                console.print(f"  [dim]Context Capacity:[/dim] {gauge}\n")
                 continue
 
             # It's a task
