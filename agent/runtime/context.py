@@ -1,6 +1,7 @@
 from pathlib import Path
 
 from runtime.models import count_tokens
+from runtime.repo_map import generate_repo_map
 
 
 def load_agents_md(project_dir: str) -> str:
@@ -29,6 +30,7 @@ def build_context(
     style: str = "",
     agents_md: str = "",
     file_tree: str = "",
+    project_dir: str = "",
     token_budget: int = 6000,
 ) -> str:
     """Build the context string for the executor, trimmed to token budget.
@@ -36,9 +38,10 @@ def build_context(
     Priority order (highest to lowest):
     1. AGENTS.md project rules (always included first)
     2. File tree (workspace directory structure)
-    3. Style guide (if provided)
-    4. File contents (trimmed if needed)
-    5. Memory results (trimmed if needed)
+    3. Repo Symbol Map (class/function skeleton)
+    4. Style guide (if provided)
+    5. File contents (trimmed if needed)
+    6. Memory results (trimmed if needed)
     """
     sections: list[tuple[str, str]] = []
 
@@ -50,7 +53,13 @@ def build_context(
     if file_tree:
         sections.append(("FILE TREE", file_tree))
 
-    # Priority 3: Style
+    # Priority 3: Repo Symbol Map
+    if project_dir:
+        repo_map_text = generate_repo_map(project_dir)
+        if repo_map_text:
+            sections.append(("REPOSITORY SYMBOL MAP", repo_map_text))
+
+    # Priority 4: Style
     if style:
         sections.append(("STYLE", style))
 
