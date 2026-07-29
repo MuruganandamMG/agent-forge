@@ -2,14 +2,23 @@
 
 from pathlib import Path
 
-from runtime.context import build_context, load_agents_md
-from runtime.enricher import enrich_request
-from runtime.filetree import generate_filetree
-from runtime.memory import Memory
-from runtime.subagents.core import run_implementer, run_planner, run_reviewer
-from runtime.sandbox import Sandbox
-from runtime.task_graph import TaskGraph
-from runtime.validate import validate
+from agent.runtime.context import build_context, load_agents_md
+from agent.runtime.enricher import enrich_request
+from agent.runtime.filetree import generate_filetree
+from agent.runtime.memory import Memory
+from agent.runtime.subagents.core import run_implementer, run_planner, run_reviewer
+from agent.runtime.sandbox import Sandbox
+from agent.runtime.task_graph import TaskGraph
+from agent.runtime.validate import validate
+from agent.runtime.ui import (
+    console,
+    print_error,
+    render_task_header,
+    render_step,
+    render_subagent_card,
+    render_summary_card,
+    ui_manager,
+)
 
 MAX_RETRIES = 3
 
@@ -95,20 +104,26 @@ def run_agent(user_query: str, project_dir: str, project_context: str = "") -> d
     except Exception:
         memory = None
 
+    ui_manager.reset_telemetry()
+
     # Check if user explicitly requested plan mode via /plan command
     is_plan_mode = user_query.strip().startswith("/plan")
     clean_query = user_query.strip()[5:].strip() if is_plan_mode else user_query.strip()
 
+    render_step(1, 7, "Classifier Gate", "done", "TASK")
+    render_step(2, 7, "Request Enricher", "running", "Assembling context")
     enriched_query = enrich_request(clean_query, project_context=project_context, memory_context="")
+    render_step(2, 7, "Request Enricher", "done", "Context assembled")
 
     if is_plan_mode:
-        # Step 1: Multi-step Planner
-        from runtime.ui import console
-        console.print("[bold cyan]🧠 Planning...[/bold cyan]")
+        # Step 3: Multi-step Planner
+        render_step(3, 7, "Planner Subagent", "running", "Generating plan DAG")
         plan_json = run_planner(enriched_query, project_context=project_context)
         try:
             task_graph = TaskGraph.from_plan_json(plan_json)
+            render_step(3, 7, "Planner Subagent", "done", f"Generated {len(task_graph.tasks)} tasks")
         except ValueError:
+            render_step(3, 7, "Planner Subagent", "failed", "Invalid plan JSON")
             console.print(f"\n[italic]{plan_json.strip()}[/italic]\n")
             return AgentResult(
                 goal=clean_query,
@@ -122,6 +137,7 @@ def run_agent(user_query: str, project_dir: str, project_context: str = "") -> d
         console.print(f"[bold green]📋 Plan:[/bold green] {task_graph.goal}")
         console.print(task_graph.summary())
     else:
+        render_step(3, 7, "Planner Subagent", "done", "Direct execution mode")
         # Direct execution mode (single task, no planner overhead)
         task_graph = TaskGraph(
             goal=clean_query,
@@ -166,8 +182,7 @@ def run_agent(user_query: str, project_dir: str, project_context: str = "") -> d
                     pass
             continue
 
-        from runtime.ui import console, print_error
-        console.print(f"\n[bold magenta]⚡ Executing Task {task_id}:[/bold magenta] {task['description']}")
+        render_task_header(task_id, len(task_graph.tasks), task['description'], task.get("files", []))
 
         file_contents = _gather_file_contents(task.get("files", []), project_dir)
         extra_context = build_context(
@@ -185,31 +200,38 @@ def run_agent(user_query: str, project_dir: str, project_context: str = "") -> d
         last_error = ""
 
         for attempt in range(1, MAX_RETRIES + 1):
+            render_step(4, 7, "Implementer Subagent", "running", f"Attempt {attempt}/{MAX_RETRIES}")
             # Generate diff
             diff = run_implementer(task["description"], file_contents, feedback=last_error)
 
             # Try to apply the diff
             if not diff.strip():
                 last_error = "Executor returned empty output."
-                console.print(f"  [yellow]⚠️ Attempt {attempt}: empty diff[/yellow]")
+                render_step(4, 7, "Implementer Subagent", "failed", "Empty diff returned")
                 continue
 
+            render_subagent_card(f"📝 Implementer Unified Diff (Attempt {attempt})", diff, border_style="cyan", is_diff=True)
+
+            render_step(5, 7, "Sandbox Diff Apply", "running", "Applying diff")
             applied = sandbox.apply_diff(diff)
             if not applied:
                 last_error = "git apply failed on the generated diff. Make sure to return standard unified diff format."
-                console.print(f"  [yellow]⚠️ Attempt {attempt}: diff didn't apply cleanly[/yellow]")
+                render_step(5, 7, "Sandbox Diff Apply", "failed", "git apply failed")
                 continue
+            render_step(5, 7, "Sandbox Diff Apply", "done", "Diff applied cleanly")
 
             # Validate locally before Subagent Review
+            render_step(6, 7, "Validator", "running", "Running test suite")
             vresult = validate(project_dir, run_pytest=True)
             if not vresult.passed:
                 last_error = f"Validation failed at {vresult.stage}: {vresult.errors[:500]}"
-                console.print(f"  [yellow]⚠️ Attempt {attempt}: {last_error}[/yellow]")
+                render_step(6, 7, "Validator", "failed", f"Failed at {vresult.stage}")
                 sandbox._run_git("checkout", ".")
                 continue
+            render_step(6, 7, "Validator", "passed", "Tests passed")
                 
             # Delegate to Reviewer Subagent
-            console.print("  [cyan]🔍 Sending to Reviewer Subagent...[/cyan]")
+            render_step(7, 7, "Reviewer Subagent", "running", "Analyzing code changes")
             review = run_reviewer(task["description"], diff)
             
             if review == "APPROVED":
@@ -219,7 +241,8 @@ def run_agent(user_query: str, project_dir: str, project_context: str = "") -> d
                 for f in task.get("files", []):
                     if f not in files_modified:
                         files_modified.append(f)
-                console.print(f"  [bold green]✅ Approved and committed:[/bold green] {commit_hash[:8]}")
+                render_step(7, 7, "Reviewer Subagent", "done", f"APPROVED (Commit {commit_hash[:8]})")
+                render_subagent_card("🔍 Reviewer Subagent Critique", "APPROVED - Clean implementation", border_style="magenta")
 
                 if memory is not None:
                     try:
@@ -230,7 +253,8 @@ def run_agent(user_query: str, project_dir: str, project_context: str = "") -> d
                 break
             else:
                 last_error = f"Reviewer Feedback:\n{review}"
-                console.print(f"  [yellow]⚠️ Attempt {attempt}: Reviewer requested changes.[/yellow]")
+                render_step(7, 7, "Reviewer Subagent", "failed", "Requested changes")
+                render_subagent_card("🔍 Reviewer Subagent Critique", review, border_style="yellow")
                 sandbox._run_git("checkout", ".")
                 
         else:
@@ -238,13 +262,18 @@ def run_agent(user_query: str, project_dir: str, project_context: str = "") -> d
                 task_id, f"Max retries ({MAX_RETRIES}) exceeded: {last_error}"
             )
             failed.append(f"Task {task_id} ({task['description']}): {last_error}")
-            console.print(f"  [bold red]❌ Task {task_id} failed after {MAX_RETRIES} attempts[/bold red]")
+            render_step(7, 7, f"Task {task_id}", "failed", f"Max retries ({MAX_RETRIES}) exceeded")
 
     # Summary
     summary = task_graph.summary()
-    console.print(f"\n[dim]{'=' * 60}[/dim]")
-    console.print("[bold]📊 Session Summary[/bold]")
-    console.print(summary)
+    render_summary_card(
+        goal=task_graph.goal,
+        completed=completed,
+        failed=failed,
+        files_modified=files_modified,
+        tokens_used=ui_manager.total_tokens,
+        elapsed_sec=ui_manager.get_elapsed_sec(),
+    )
     return AgentResult(
         goal=task_graph.goal,
         completed=completed,
