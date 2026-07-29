@@ -3,9 +3,19 @@ from google.genai import types
 from runtime.providers.gemini_provider import GeminiProvider
 from runtime.tools.base import Tool, tool_registry
 
+def _normalize_tool(t: Any) -> Tool:
+    if isinstance(t, Tool):
+        return t
+    if callable(t):
+        name = getattr(t, "__name__", str(t))
+        if name in tool_registry:
+            return tool_registry[name]
+        return Tool(t)
+    raise ValueError(f"Invalid tool type: {type(t)}")
+
 def run_tool_agent(
     task_desc: str,
-    tools: Optional[List[Tool]] = None,
+    tools: Optional[List[Any]] = None,
     provider: Optional[Any] = None,
     max_turns: int = 10,
     system_prompt: str = "You are an expert autonomous coding agent. Use available tools to solve the user's task."
@@ -14,16 +24,18 @@ def run_tool_agent(
         provider = GeminiProvider()
 
     if tools is None:
-        tools = list(tool_registry.values())
+        normalized_tools = list(tool_registry.values())
+    else:
+        normalized_tools = [_normalize_tool(t) for t in tools]
 
-    tool_map = {t.name: t for t in tools}
+    tool_map = {t.name: t for t in normalized_tools}
     messages = [
         {"role": "system", "content": system_prompt},
         {"role": "user", "content": task_desc}
     ]
 
     for turn in range(max_turns):
-        text, function_calls = provider.chat_with_tools(messages=messages, tools=tools)
+        text, function_calls = provider.chat_with_tools(messages=messages, tools=normalized_tools)
 
         if not function_calls:
             return text
