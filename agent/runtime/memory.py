@@ -3,7 +3,10 @@
 import json
 import uuid
 
-import chromadb
+try:
+    import chromadb
+except Exception:
+    chromadb = None
 
 from runtime.models import chat
 
@@ -12,11 +15,13 @@ class Memory:
     """Persistent memory backed by ChromaDB with sessions and reflections."""
 
     def __init__(self, persist_dir: str) -> None:
+        if chromadb is None:
+            raise ImportError("ChromaDB is not available in this environment")
         self.client = chromadb.PersistentClient(path=persist_dir)
         self._sessions = self.client.get_or_create_collection("sessions")
         self._reflections = self.client.get_or_create_collection("reflections")
 
-    def _collection(self, name: str) -> chromadb.Collection:
+    def _collection(self, name: str) -> "chromadb.Collection":
         if name == "sessions":
             return self._sessions
         elif name == "reflections":
