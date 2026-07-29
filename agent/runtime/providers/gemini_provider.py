@@ -1,4 +1,6 @@
+import os
 from typing import Any, List, Optional, Tuple
+from dotenv import load_dotenv
 from google import genai
 from google.genai import types
 from runtime.providers.base import BaseProvider
@@ -6,8 +8,13 @@ from runtime.tools.base import Tool
 
 class GeminiProvider(BaseProvider):
     def __init__(self, model_name: str = "gemini-2.5-pro"):
+        load_dotenv()
         self.model_name = model_name
-        self.client = genai.Client()
+        api_key = os.getenv("GEMINI_API_KEY") or os.getenv("GOOGLE_API_KEY")
+        if api_key:
+            self.client = genai.Client(api_key=api_key)
+        else:
+            self.client = genai.Client()
 
     def chat(self, messages: list[dict[str, Any]], temperature: float = 0.2, max_tokens: int = 4096, stop: list[str] | None = None) -> str:
         text, _ = self.chat_with_tools(messages, temperature=temperature, max_tokens=max_tokens, stop=stop)
